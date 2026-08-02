@@ -9,11 +9,63 @@ import { TRANSLATIONS } from './data/menuData';
 import {
   Monitor, Utensils, LayoutDashboard, Bell, BellRing,
   Mail, Lock, Eye, EyeOff, X, ShieldCheck, ChefHat, LogOut, AlertCircle,
-  CheckCheck, Clock, Package, Sparkles
+  CheckCheck, Clock, Package, Sparkles, Volume2, VolumeX
 } from 'lucide-react';
 
 const ADMIN_EMAIL = 'penhbormey011427809@gmail.com';
 const ADMIN_PASSWORD = 'admin1234';
+const BROADCAST_CHANNEL = 'cyber_cafe_channel';
+
+// Web Audio Context singleton for mobile compatibility
+let globalAudioCtx = null;
+
+function getAudioContext() {
+  if (!globalAudioCtx && typeof window !== 'undefined') {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) globalAudioCtx = new AudioCtx();
+  }
+  if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+    globalAudioCtx.resume().catch(() => {});
+  }
+  return globalAudioCtx;
+}
+
+function playAlertChime() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Dual-tone chime (High B6 -> C7)
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+
+    osc1.frequency.setValueAtTime(880, now);
+    osc1.frequency.setValueAtTime(1320, now + 0.15);
+
+    osc2.frequency.setValueAtTime(1108.73, now + 0.15);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.35, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now + 0.15);
+
+    osc1.stop(now + 0.5);
+    osc2.stop(now + 0.5);
+  } catch (err) {
+    console.log('Audio chime prevented:', err);
+  }
+}
 
 export default function App() {
   const [currentView, setCurrentView] = useState('customer');
@@ -31,24 +83,91 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminRole, setAdminRole] = useState(null);
 
+  // Sound enabled state
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   // Notifications
   const [notifications, setNotifications] = useState([]);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
-  const [notifPermission, setNotifPermission] = useState('default');
   const notifPanelRef = useRef(null);
   const bellRef = useRef(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Request browser notification permission on mount
+  // Unlock Web Audio on first mobile touch/click anywhere
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotifPermission(Notification.permission);
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(p => setNotifPermission(p));
-      }
+    const unlockAudio = () => {
+      getAudioContext();
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('click', unlockAudio, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+  }, []);
+
+  // Request browser push permission on load
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
   }, []);
+
+  // Cross-Tab & Multi-Window Sync (BroadcastChannel + LocalStorage)
+  useEffect(() => {
+    const handleSyncMessage = (data) => {
+      if (!data) return;
+      if (data.type === 'NEW_ORDER') {
+        setOrders(prev => [data.order, ...prev]);
+        triggerNotification(data.order, false);
+      } else if (data.type === 'STAFF_CALL') {
+        triggerCallNotification(data.tableNumber, false);
+      } else if (data.type === 'UPDATE_STATUS') {
+        setOrders(prev => prev.map(o => o.id === data.orderId ? { ...o, status: data.status } : o));
+      }
+    };
+
+    // BroadcastChannel API
+    let channel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(BROADCAST_CHANNEL);
+      channel.onmessage = (event) => handleSyncMessage(event.data);
+    }
+
+    // LocalStorage fallback for older browsers or cross-domain tabs
+    const handleStorageEvent = (e) => {
+      if (e.key === 'cyber_cafe_sync' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleSyncMessage(data);
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, []);
+
+  const broadcastSync = (payload) => {
+    // BroadcastChannel
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel(BROADCAST_CHANNEL);
+        bc.postMessage(payload);
+        bc.close();
+      }
+    } catch (_) {}
+    // LocalStorage fallback
+    try {
+      localStorage.setItem('cyber_cafe_sync', JSON.stringify({ ...payload, timestamp: Date.now() }));
+    } catch (_) {}
+  };
 
   // Close notif panel on outside click
   useEffect(() => {
@@ -86,14 +205,14 @@ export default function App() {
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Push a new in-app + browser notification
-  const pushNotification = (order) => {
+  // Trigger Notification + Sound Alert
+  const triggerNotification = (order, isLocalAction = true) => {
     const itemSummary = order.items.map(i => `${i.quantity}× ${i.item.name}`).join(', ');
     const newNotif = {
-      id: Date.now(),
+      id: Date.now() + Math.random(),
       orderId: order.id,
       tableNumber: order.tableNumber,
       total: order.total,
@@ -101,40 +220,66 @@ export default function App() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       read: false,
     };
+
     setNotifications(prev => [newNotif, ...prev]);
 
-    // Browser push notification
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`🔔 New Order — Table #${order.tableNumber}`, {
-        body: `Order #${order.id} • $${order.total.toFixed(2)}\n${itemSummary}`,
-        icon: '/menu/favicon.svg',
-        badge: '/menu/favicon.svg',
-        tag: `order-${order.id}`,
-        requireInteraction: true,
-      });
+    // Play Sound if enabled
+    if (soundEnabled) {
+      playAlertChime();
     }
 
-    // Play a subtle beep using Web Audio API
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.5);
-    } catch (_) {}
+    // Native Browser Notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`🔔 New Order — Table #${order.tableNumber}`, {
+          body: `Order #${order.id} • $${order.total.toFixed(2)}\n${itemSummary}`,
+          icon: '/menu/favicon.svg',
+          tag: `order-${order.id}`,
+        });
+      } catch (_) {}
+    }
+
+    if (!isLocalAction) {
+      showToast(`🔔 New Order #${order.id} from Table #${order.tableNumber}!`);
+    }
+  };
+
+  const triggerCallNotification = (tblNum, isLocalAction = true) => {
+    const callNotif = {
+      id: Date.now() + Math.random(),
+      orderId: null,
+      tableNumber: tblNum,
+      total: null,
+      summary: `Table #${tblNum} requested staff assistance.`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      isCall: true,
+    };
+
+    setNotifications(prev => [callNotif, ...prev]);
+
+    if (soundEnabled) {
+      playAlertChime();
+    }
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`🔔 Table #${tblNum} needs help!`, {
+          body: 'Customer requested waiter assistance.',
+          icon: '/menu/favicon.svg',
+        });
+      } catch (_) {}
+    }
+
+    if (!isLocalAction) {
+      showToast(`🔔 Waiter call from Table #${tblNum}!`);
+    }
   };
 
   const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   const clearNotif = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
 
-  // ── Admin auth ────────────────────────────────────────
+  // Admin auth
   const handleAdminButtonClick = () => {
     if (isAdminAuthenticated) { setShowRolePicker(true); }
     else { setShowAdminLogin(true); setAdminEmail(''); setAdminPassword(''); setAdminLoginError(''); }
@@ -157,11 +302,11 @@ export default function App() {
       setIsAdminAuthenticated(true);
       setShowAdminLogin(false);
       setShowRolePicker(true);
-      // Request browser notification permission when admin logs in
+      playAlertChime();
       if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(p => setNotifPermission(p));
+        Notification.requestPermission();
       }
-    }, 1200);
+    }, 1000);
   };
 
   const handleSelectRole = (role) => {
@@ -180,7 +325,7 @@ export default function App() {
     showToast('Signed out of admin panel.');
   };
 
-  // ── Cart & Orders ─────────────────────────────────────
+  // Cart & Orders
   const handleAddToCart = (item) => {
     setCartItems(prev => [...prev, item]);
     const name = lang === 'km' && item.item.nameKm ? item.item.nameKm : item.item.name;
@@ -202,42 +347,30 @@ export default function App() {
       tableNumber, time: 'Just now', status: 'received',
       total: subtotal * 1.07, items: cartItems
     };
+
     setOrders(prev => [newOrder, ...prev]);
     setCartItems([]);
     setIsCartOpen(false);
     setIsOrderTrackerOpen(true);
     showToast(`Order #${newOrder.id} placed for Table #${tableNumber}!`);
 
-    // 🔔 Send notification to staff/admin
-    pushNotification(newOrder);
+    // Trigger local notification + sound
+    triggerNotification(newOrder, true);
+
+    // Broadcast to other open tabs / windows
+    broadcastSync({ type: 'NEW_ORDER', order: newOrder });
   };
 
   const handleCallStaff = () => {
     showToast(`Staff alerted for Table #${tableNumber}!`);
-    // Also create a "call" notification
-    const callNotif = {
-      id: Date.now(),
-      orderId: null,
-      tableNumber,
-      total: null,
-      summary: `Table #${tableNumber} is calling for assistance.`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      read: false,
-      isCall: true,
-    };
-    setNotifications(prev => [callNotif, ...prev]);
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`🔔 Table #${tableNumber} needs assistance!`, {
-        body: 'A customer is calling for a waiter.',
-        icon: '/menu/favicon.svg',
-        requireInteraction: true,
-      });
-    }
+    triggerCallNotification(tableNumber, true);
+    broadcastSync({ type: 'STAFF_CALL', tableNumber });
   };
 
   const handleUpdateOrderStatus = (orderId, newStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     showToast(`Order #${orderId} → ${newStatus.toUpperCase()}`);
+    broadcastSync({ type: 'UPDATE_STATUS', orderId, status: newStatus });
   };
 
   const handleSelectTableFromAdmin = (tblNum) => {
@@ -255,21 +388,21 @@ export default function App() {
       <nav className="bg-[#0e0f17] border-b border-white/10 px-4 py-2 flex items-center justify-between text-xs relative z-50">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-bold text-gray-300 hidden sm:inline">Café QR &amp; Tablet Mode:</span>
+          <span className="font-bold text-gray-300 hidden sm:inline">CyberCafé System:</span>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Tablet View */}
           <button onClick={() => setCurrentView('customer')}
             className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-bold transition-all ${currentView === 'customer' ? 'bg-cyan-500 text-black shadow-[0_0_10px_rgba(0,255,255,0.4)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
-            <Monitor size={14} /><span>Tablet View (Table #{tableNumber})</span>
+            <Monitor size={14} /><span>Tablet View (#{tableNumber})</span>
           </button>
 
           {/* KDS — admin only */}
           {isAdminAuthenticated && (
             <button onClick={() => setCurrentView('kds')}
               className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-bold transition-all ${currentView === 'kds' ? 'bg-cyan-500 text-black shadow-[0_0_10px_rgba(0,255,255,0.4)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
-              <Utensils size={14} /><span>Kitchen Display (KDS)</span>
+              <Utensils size={14} /><span>Kitchen Display</span>
             </button>
           )}
 
@@ -280,22 +413,34 @@ export default function App() {
             {isAdminAuthenticated && <ShieldCheck size={12} className="text-green-300" />}
           </button>
 
-          {/* 🔔 Notification Bell — admin only */}
-          {isAdminAuthenticated && (
-            <button
-              ref={bellRef}
-              onClick={() => { setShowNotifPanel(p => !p); if (unreadCount > 0) markAllRead(); }}
-              className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all ${unreadCount > 0 ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300 animate-pulse' : 'bg-white/5 text-gray-400 hover:text-white border border-transparent'}`}
-              title="Order Notifications"
-            >
-              {unreadCount > 0 ? <BellRing size={15} /> : <Bell size={15} />}
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-extrabold flex items-center justify-center shadow-[0_0_6px_rgba(239,68,68,0.8)]">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-          )}
+          {/* Sound Toggle */}
+          <button
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) playAlertChime();
+              showToast(next ? '🔊 Sound alerts ON' : '🔇 Sound alerts OFF');
+            }}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${soundEnabled ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-400/30' : 'bg-white/5 text-gray-500 border border-white/10'}`}
+            title={soundEnabled ? 'Mute sound alerts' : 'Enable sound alerts'}
+          >
+            {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+          </button>
+
+          {/* 🔔 Notification Bell */}
+          <button
+            ref={bellRef}
+            onClick={() => { setShowNotifPanel(p => !p); if (unreadCount > 0) markAllRead(); }}
+            className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all ${unreadCount > 0 ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300 animate-pulse' : 'bg-white/5 text-gray-400 hover:text-white border border-transparent'}`}
+            title="Order Notifications"
+          >
+            {unreadCount > 0 ? <BellRing size={15} /> : <Bell size={15} />}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-extrabold flex items-center justify-center shadow-[0_0_6px_rgba(239,68,68,0.8)]">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
 
           {/* Logout */}
           {isAdminAuthenticated && (
@@ -307,12 +452,11 @@ export default function App() {
         </div>
 
         {/* ── Notification Panel ─────────────────────────── */}
-        {showNotifPanel && isAdminAuthenticated && (
+        {showNotifPanel && (
           <div
             ref={notifPanelRef}
             className="absolute top-full right-4 mt-2 w-80 rounded-2xl border border-white/10 bg-[#0e0f1a]/98 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] overflow-hidden"
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 bg-white/3">
               <div className="flex items-center gap-2">
                 <BellRing size={14} className="text-amber-400" />
@@ -326,21 +470,26 @@ export default function App() {
               <div className="flex items-center gap-2">
                 {notifications.length > 0 && (
                   <button onClick={markAllRead} className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold transition-colors">
-                    Mark all read
+                    Mark read
                   </button>
                 )}
                 <button onClick={() => setNotifications([])} className="text-[10px] text-gray-500 hover:text-gray-300 font-semibold transition-colors">
-                  Clear all
+                  Clear
                 </button>
               </div>
             </div>
 
-            {/* Notification list */}
             <div className="max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10 text-gray-600">
                   <Bell size={28} />
                   <p className="text-xs">No notifications yet</p>
+                  <button
+                    onClick={() => triggerNotification({ id: 'DEMO-' + Math.floor(Math.random()*100), tableNumber: 5, total: 12.50, items: [{ quantity: 1, item: { name: 'Iced Latte' } }] })}
+                    className="text-[11px] text-cyan-400 underline mt-1"
+                  >
+                    Test Sound &amp; Alert
+                  </button>
                 </div>
               ) : (
                 notifications.map(n => (
@@ -348,15 +497,10 @@ export default function App() {
                     key={n.id}
                     className={`relative flex items-start gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/4 transition-all ${!n.read ? 'bg-amber-500/5' : ''}`}
                   >
-                    {/* Icon */}
                     <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5 ${n.isCall ? 'bg-fuchsia-500/20 border border-fuchsia-400/30' : 'bg-cyan-500/15 border border-cyan-400/25'}`}>
-                      {n.isCall
-                        ? <BellRing size={14} className="text-fuchsia-400" />
-                        : <Package size={14} className="text-cyan-400" />
-                      }
+                      {n.isCall ? <BellRing size={14} className="text-fuchsia-400" /> : <Package size={14} className="text-cyan-400" />}
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <p className="text-white font-bold text-xs">
@@ -368,16 +512,11 @@ export default function App() {
                       <div className="flex items-center gap-2 mt-1">
                         <Clock size={10} className="text-gray-600" />
                         <span className="text-[10px] text-gray-600">{n.time}</span>
-                        {n.total && (
-                          <span className="text-[10px] text-cyan-400 font-bold">${n.total.toFixed(2)}</span>
-                        )}
-                        {n.tableNumber && !n.isCall && (
-                          <span className="text-[10px] text-gray-500">Table #{n.tableNumber}</span>
-                        )}
+                        {n.total && <span className="text-[10px] text-cyan-400 font-bold">${n.total.toFixed(2)}</span>}
+                        {n.tableNumber && !n.isCall && <span className="text-[10px] text-gray-500">Table #{n.tableNumber}</span>}
                       </div>
                     </div>
 
-                    {/* Dismiss */}
                     <button onClick={() => clearNotif(n.id)} className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-600 hover:text-gray-300 transition-all mt-0.5">
                       <X size={11} />
                     </button>
@@ -386,14 +525,13 @@ export default function App() {
               )}
             </div>
 
-            {/* Footer action */}
             {notifications.length > 0 && (
               <div className="px-4 py-2.5 border-t border-white/8">
                 <button
-                  onClick={() => { setShowNotifPanel(false); setCurrentView(adminRole === 'staff' ? 'kds' : 'admin'); }}
+                  onClick={() => { setShowNotifPanel(false); handleAdminButtonClick(); }}
                   className="w-full py-2 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-cyan-400 text-xs font-bold hover:bg-cyan-500/20 transition-all flex items-center justify-center gap-1.5"
                 >
-                  <CheckCheck size={13} /> View in {adminRole === 'staff' ? 'Kitchen Display' : 'Admin Dashboard'}
+                  <CheckCheck size={13} /> View in Staff Dashboard
                 </button>
               </div>
             )}
