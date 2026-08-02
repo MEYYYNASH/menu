@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #090a10;
+    --glass-bg: rgba(20, 20, 30, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --cyan-glow: #00ffff;
+    --pink-glow: #ff00ff;
+    --accent-amber: #ffb703;
+    --fb-blue: #1877f2;
+  }
+
+  body {
+    background-color: #090a10;
+    color: #e6e6e6;
+    font-family: 'Kantumruy Pro', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    margin: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom Cyberpunk & Glassmorphism Utility Classes */
+.glass-panel {
+  background: rgba(20, 20, 30, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-card {
+  background: rgba(26, 26, 38, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:active {
+  transform: scale(0.98);
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 255, 255, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(0, 255, 255, 0.15), 0 0 15px rgba(255, 0, 255, 0.1);
+}
+
+/* Floating Bottom Pill Navbar (Matching User Screenshot) */
+.floating-bottom-nav {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: 90%;
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 9999px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-pill-active {
+  background: linear-gradient(135deg, #ff0844 0%, #ff4e50 100%);
+  color: #ffffff;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 20px rgba(255, 8, 68, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-pill-inactive {
+  color: #4a5568;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.floating-pill-inactive:hover {
+  color: #ff0844;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Facebook Style Touch Buttons */
+.fb-btn-primary {
+  background: linear-gradient(135deg, #00ffff 0%, #0088ff 100%);
+  color: #000;
+  font-weight: 700;
+  border-radius: 14px;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 4px 14px 0 rgba(0, 255, 255, 0.35);
+}
+
+.fb-btn-primary:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px 0 rgba(0, 255, 255, 0.5);
+}
+
+.cyber-btn-primary {
+  background: linear-gradient(135deg, #00ffff 0%, #0088ff 100%);
+  color: #000;
+  font-weight: 700;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+}
+
+.cyber-btn-primary:active {
+  transform: scale(0.95);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(10, 10, 15, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffff;
+}
+
+@keyframes neonPulse {
+  0%, 100% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.5));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.8));
+  }
+}
+
+.animate-neon-pulse {
+  animation: neonPulse 3s infinite ease-in-out;
+}
