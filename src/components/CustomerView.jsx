@@ -427,61 +427,6 @@ export default function CustomerView({
 
       </div>
 
-      {/* ── QR SCAN MODAL ─────────────────────────────── */}
-      {showQrModal && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center" onClick={() => setShowQrModal(false)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm mx-4 mb-8 rounded-3xl border border-white/10 bg-[#0e0f1a]/95 backdrop-blur-xl p-6 shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Close */}
-            <button onClick={() => setShowQrModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-              <X size={20} />
-            </button>
-
-            <h2 className="text-white font-extrabold text-lg mb-1 text-center">Scan Table QR Code</h2>
-            <p className="text-gray-400 text-xs text-center mb-5">Point your camera at the QR code on your table to set your table number.</p>
-
-            {/* Scan Frame */}
-            <div className="relative mx-auto w-52 h-52 rounded-2xl overflow-hidden border-2 border-cyan-400/60 shadow-[0_0_24px_rgba(0,255,255,0.2)] mb-5">
-              <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                {qrSuccess ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <CheckCircle2 size={52} className="text-green-400" />
-                    <span className="text-green-300 font-bold text-sm">Table #{tableNumber} Set!</span>
-                  </div>
-                ) : qrScanning ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <ScanLine size={48} className="text-cyan-400 animate-bounce" />
-                    <span className="text-cyan-300 text-xs animate-pulse">Scanning…</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-gray-500">
-                    <QrCode size={60} className="text-gray-600" />
-                    <span className="text-xs">Tap below to scan</span>
-                  </div>
-                )}
-              </div>
-              {/* Corner brackets */}
-              <span className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-cyan-400 rounded-tl" />
-              <span className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-cyan-400 rounded-tr" />
-              <span className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-cyan-400 rounded-bl" />
-              <span className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-cyan-400 rounded-br" />
-            </div>
-
-            {!qrSuccess && (
-              <button
-                onClick={simulateScan}
-                disabled={qrScanning}
-                className="w-full py-3 rounded-2xl font-bold text-sm text-black bg-gradient-to-r from-cyan-400 to-cyan-300 disabled:opacity-50 active:scale-95 transition-all shadow-[0_0_16px_rgba(0,255,255,0.3)]"
-              >
-                {qrScanning ? 'Scanning…' : 'Open Camera & Scan'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── ACCOUNT / AUTH MODAL ──────────────────────── */}
       {showAccountModal && (
