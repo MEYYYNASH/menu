@@ -130,12 +130,12 @@ export default function AdminDashboardView({ orders, onSelectTable, langDict }) 
             <h2 className="text-lg font-bold text-white tracking-wide">
               Printable QR Code Matrix (Tables 1–20)
             </h2>
-            <p className="text-xs text-gray-400">Each table links to https://yourcafe.com/table/X</p>
+            <p className="text-xs text-gray-400">Scan to open menu at <span className="text-cyan-400 font-semibold">meyyynash.github.io/menu/</span></p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             {Array.from({ length: 20 }, (_, idx) => idx + 1).map((tNum) => {
-              const tableUrl = `https://yourcafe.com/table/${tNum}`;
+              const tableUrl = `https://meyyynash.github.io/menu/?table=${tNum}`;
               return (
                 <div key={tNum} className="glass-panel p-5 rounded-3xl border border-cyan-500/30 text-center space-y-3">
                   <div className="bg-white p-3 rounded-2xl inline-block border border-gray-200">

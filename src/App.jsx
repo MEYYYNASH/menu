@@ -439,7 +439,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2 bg-violet-500/10 border border-violet-400/20 rounded-2xl px-3 py-2.5 mb-5">
                 <ShieldCheck size={14} className="text-violet-400 flex-shrink-0" />
-                <p className="text-[11px] text-violet-300">Only <span className="font-bold text-white">{ADMIN_EMAIL}</span> is authorized.</p>
+                <p className="text-[11px] text-violet-300">Admin credentials required to access staff features.</p>
               </div>
               <form onSubmit={handleAdminLogin} className="space-y-3">
                 <div className="relative">
