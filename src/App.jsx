@@ -655,9 +655,9 @@ export default function App() {
 
       {/* Global Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#14141e99] backdrop-blur-md border border-cyan-400 text-cyan-300 px-5 py-3 rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.3)] flex items-center gap-3 text-sm font-bold">
-          <Bell size={18} className="text-amber-400" />
-          <span>{toastMessage}</span>
+        <div className="fixed bottom-24 md:bottom-6 left-1/2 md:left-auto md:right-6 -translate-x-1/2 md:translate-x-0 z-[100] bg-[#0e0f1af0] backdrop-blur-xl border border-cyan-400/60 text-cyan-200 px-5 py-3 rounded-2xl shadow-[0_0_25px_rgba(0,255,255,0.35)] flex items-center gap-3 text-xs md:text-sm font-bold w-[90%] max-w-sm md:w-auto animate-fadeIn">
+          <Bell size={18} className="text-amber-400 flex-shrink-0" />
+          <span className="line-clamp-2">{toastMessage}</span>
         </div>
       )}
     </div>
